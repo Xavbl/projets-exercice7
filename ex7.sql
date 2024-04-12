@@ -25,7 +25,8 @@ GO
 Question 1 – Fonction pour générer les adresses courriels
 Écrire en T-SQL une fonction qui génère l'adresse courriel d'un nouvel employé. L’adresse de courriel a
 la forme suivante : prenom.nom@entreprise-abc.qc.ca.
-Exemple: FN_GENERER_EMAIL(‘Alex’,’Drolet’)
+Exemple: FN_GENERER_EMAIL(‘Alex’,’Drolet’)
+
 */
 CREATE OR ALTER FUNCTION CREATION_EMAIL(@nom VARCHAR(10), @prenom VARCHAR(10)) RETURNS VARCHAR(100)
 AS
@@ -163,6 +164,8 @@ modifications apportées aux salaires des employés.
 Q3.A Dans un premier temps, pour simplifier, considérez que seulement le salaire d’1 employé
 peut être modifié dans la même transaction.
 */
+
+--Création table
 DROP TABLE IF EXISTS AUDIT_EMPLOYE_SALAIRE
 
 CREATE TABLE AUDIT_EMPLOYE_SALAIRE(
@@ -175,10 +178,13 @@ CREATE TABLE AUDIT_EMPLOYE_SALAIRE(
 	UTILISATEUR					VARCHAR(50)		NOT NULL
 
 )
-GO
 
-SELECT * FROM AUDIT_EMPLOYE_SALAIRE
-
+--Creation Trigger 
+/*
+Q3.A Dans un premier temps, pour simplifier, considérez que seulement le salaire d’1 employé
+peut être modifié dans la même transaction.
+*/
+DROP TRIGGER IF EXISTS TRIGGER_CHANGEMENT_SALAIRE
 GO
 CREATE TRIGGER TRIGGER_CHANGEMENT_SALAIRE
 ON EMPLOYE
@@ -205,10 +211,12 @@ AS
 			SUSER_SNAME())
 	END
 
-SELECT * FROM EMPLOYE
+BEGIN TRANSACTION
 UPDATE EMPLOYE
 	SET SALAIRE = 1000
 	WHERE NO_EMPLOYE = 1
+SELECT * FROM AUDIT_EMPLOYE_SALAIRE
+ROLLBACK
 
 /*
 NO_EMPLOYE NOM                            PRENOM                         DATE_MODIFICATION_SALAIRE ANCIEN_SALAIRE                          NOUVEAU_SALAIRE                         UTILISATEUR
@@ -216,13 +224,60 @@ NO_EMPLOYE NOM                            PRENOM                         DATE_MO
 1          Blow                           Jow                            2024-04-12                122000                                  1000                                    DESKTOP-RSKQ5V3\xavto
 */
 
+
+--Création Trigger
 /*
 Q.3B	Dans un deuxième temps, réécrivez la procédure en considérant que le salaire de plusieurs
 		employés peuvent être modifiés dans la même transaction et déclencher le trigger.
 */
+DROP TRIGGER IF EXISTS TRIGGER_CHANGEMENT_SALAIRE
+GO
+CREATE TRIGGER TRIGGER_CHANGEMENT_SALAIRE
+ON EMPLOYE
+AFTER UPDATE
+AS
+BEGIN
+    IF UPDATE(SALAIRE)
+    BEGIN
+        INSERT INTO AUDIT_EMPLOYE_SALAIRE
+            (NO_EMPLOYE,
+            NOM,
+            PRENOM,
+            DATE_MODIFICATION_SALAIRE,
+            ANCIEN_SALAIRE,
+            NOUVEAU_SALAIRE,
+            UTILISATEUR)
+        SELECT 
+            deleted.NO_EMPLOYE,
+            deleted.NOM,
+            deleted.PRENOM,
+            GETDATE(),
+            deleted.SALAIRE,
+            inserted.SALAIRE,
+            SUSER_SNAME()
+        FROM 
+            deleted
+        INNER JOIN 
+            inserted ON deleted.NO_EMPLOYE = inserted.NO_EMPLOYE;
+    END
+END
 
-SELECT * FROM EMPLOYE
-UPDATE EMPLOYE
-	SET SALAIRE = 2000
-	WHERE NO_EMPLOYE IN(1, 5)
+BEGIN TRANSACTION
+	UPDATE EMPLOYE
+		SET SALAIRE = 4000
+		WHERE NO_EMPLOYE IN(5,6,8,9,10)
+	SELECT * FROM AUDIT_EMPLOYE_SALAIRE
+ROLLBACK
+/*
+NO_EMPLOYE NOM                            PRENOM                         DATE_MODIFICATION_SALAIRE ANCIEN_SALAIRE                          NOUVEAU_SALAIRE                         UTILISATEUR
+---------- ------------------------------ ------------------------------ ------------------------- --------------------------------------- --------------------------------------- --------------------------------------------------
+10         VanHoute                       Eloi                           2024-04-12                28000                                   4000                                    TECNISTICO\Tecnistico
+9          Gagnon                         Martine                        2024-04-12                38000                                   4000                                    TECNISTICO\Tecnistico
+8          Gagnon                         Carmen                         2024-04-12                42000                                   4000                                    TECNISTICO\Tecnistico
+6          Monjal                         Sylvie                         2024-04-12                45000                                   4000                                    TECNISTICO\Tecnistico
+5          Gates                          Bill                           2024-04-12                78000                                   4000                                    TECNISTICO\Tecnistico
+
+(5 rows affected)
+*/
+
 	
