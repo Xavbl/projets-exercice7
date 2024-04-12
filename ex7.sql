@@ -163,9 +163,66 @@ modifications apportées aux salaires des employés.
 Q3.A Dans un premier temps, pour simplifier, considérez que seulement le salaire d’1 employé
 peut être modifié dans la même transaction.
 */
+DROP TABLE IF EXISTS AUDIT_EMPLOYE_SALAIRE
+
+CREATE TABLE AUDIT_EMPLOYE_SALAIRE(
+	NO_EMPLOYE					SMALLINT		NOT NULL,
+	NOM							VARCHAR(30)		NOT NULL,
+	PRENOM						VARCHAR(30)		NOT NULL,
+	DATE_MODIFICATION_SALAIRE	DATE			NOT NULL,
+	ANCIEN_SALAIRE				DECIMAL(7,0)	NOT NULL,
+	NOUVEAU_SALAIRE				DECIMAL(7,0)	NOT NULL,
+	UTILISATEUR					VARCHAR(50)		NOT NULL
+
+)
 GO
-CREATE OR ALTER PROCEDURE AUDIT_EMPLOYE_SALAIRE
+
+SELECT * FROM AUDIT_EMPLOYE_SALAIRE
+
+GO
+CREATE TRIGGER TRIGGER_CHANGEMENT_SALAIRE
 ON EMPLOYE
+
 AFTER UPDATE
 AS
-BEGIN
+	IF UPDATE(SALAIRE)
+	BEGIN
+		INSERT INTO AUDIT_EMPLOYE_SALAIRE
+			(NO_EMPLOYE,
+			NOM,
+			PRENOM,
+			DATE_MODIFICATION_SALAIRE,
+			ANCIEN_SALAIRE,
+			NOUVEAU_SALAIRE,
+			UTILISATEUR)
+		VALUES
+			((SELECT NO_EMPLOYE FROM deleted),
+			(SELECT NOM FROM deleted),
+			(SELECT PRENOM FROM deleted),
+			GETDATE(),
+			(SELECT SALAIRE FROM deleted),
+			(SELECT SALAIRE FROM inserted),
+			SUSER_SNAME())
+	END
+
+SELECT * FROM EMPLOYE
+UPDATE EMPLOYE
+	SET SALAIRE = 1000
+	WHERE NO_EMPLOYE = 1
+
+/*
+NO_EMPLOYE NOM                            PRENOM                         DATE_MODIFICATION_SALAIRE ANCIEN_SALAIRE                          NOUVEAU_SALAIRE                         UTILISATEUR
+---------- ------------------------------ ------------------------------ ------------------------- --------------------------------------- --------------------------------------- --------------------------------------------------
+1          Blow                           Jow                            2024-04-12                122000                                  1000                                    DESKTOP-RSKQ5V3\xavto
+*/
+
+/*
+Q.3B	Dans un deuxième temps, réécrivez la procédure en considérant que le salaire de plusieurs
+		employés peuvent être modifiés dans la même transaction et déclencher le trigger.
+*/
+
+SELECT * FROM EMPLOYE
+UPDATE EMPLOYE
+	SET SALAIRE = 2000
+	WHERE NO_EMPLOYE IN(1, 5)
+	
