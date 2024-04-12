@@ -164,3 +164,8 @@ Q3.A Dans un premier temps, pour simplifier, considérez que seulement le salaire
 peut être modifié dans la même transaction.
 */
 GO
+CREATE OR ALTER PROCEDURE AUDIT_EMPLOYE_SALAIRE
+ON EMPLOYE
+AFTER UPDATE
+AS
+BEGIN
